@@ -2,8 +2,11 @@
 import { Heart, MessageCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="min-h-screen flex items-center justify-center pt-20 pb-16 px-6">
       <div className="container mx-auto">
@@ -21,11 +24,20 @@ const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Button size="lg" className="hover-scale w-full sm:w-auto">
+            <Button 
+              size="lg" 
+              className="hover-scale w-full sm:w-auto"
+              onClick={() => navigate('/chat')}
+            >
               Start Chatting
               <MessageCircle className="w-5 h-5 ml-2" />
             </Button>
-            <Button size="lg" variant="outline" className="hover-scale w-full sm:w-auto">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="hover-scale w-full sm:w-auto"
+              onClick={() => navigate('/chat')}
+            >
               Learn More
             </Button>
           </div>

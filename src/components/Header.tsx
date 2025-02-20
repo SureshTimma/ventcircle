@@ -1,13 +1,19 @@
 
 import { Heart, MessageCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const Header = () => {
+  const navigate = useNavigate();
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-card">
       <nav className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <div 
+            className="flex items-center space-x-2 cursor-pointer" 
+            onClick={() => navigate('/')}
+          >
             <Heart className="w-6 h-6 text-pink-500" />
             <span className="text-xl font-semibold">VentCircle</span>
           </div>
@@ -22,7 +28,11 @@ const Header = () => {
               Support
             </a>
           </div>
-          <Button variant="secondary" className="hover-scale">
+          <Button 
+            variant="secondary" 
+            className="hover-scale"
+            onClick={() => navigate('/chat')}
+          >
             Get Started
           </Button>
         </div>
