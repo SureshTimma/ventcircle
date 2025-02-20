@@ -5,9 +5,89 @@ import { Button } from "@/components/ui/button";
 import ChatInterface from "@/components/chat/ChatInterface";
 import EmergencyHelp from "@/components/EmergencyHelp";
 import MoodThemeSwitcher from "@/components/MoodThemeSwitcher";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+const androidVersions = [
+  "Cupcake", "Donut", "Eclair", "Froyo", "Gingerbread", "Honeycomb", "IceCreamSandwich",
+  "JellyBean", "KitKat", "Lollipop", "Marshmallow", "Nougat", "Oreo", "Pie", "Quince",
+  "RedVelvet", "Snow", "Tiramisu", "Unicorn", "Vanilla", "Waffle", "Yogurt", "Zebra"
+];
+
+const generateNickname = () => {
+  const adjectives = ["Happy", "Clever", "Swift", "Gentle", "Brave", "Bright", "Kind"];
+  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const version = androidVersions[Math.floor(Math.random() * androidVersions.length)];
+  const number = Math.floor(Math.random() * 1000);
+  return `${adjective}${version}${number}`;
+};
 
 const Chat = () => {
   const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const initializeUser = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Check if user is already authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          // Sign up anonymously
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: `${crypto.randomUUID()}@anonymous.com`,
+            password: crypto.randomUUID(),
+          });
+
+          if (authError) throw authError;
+
+          if (authData.user) {
+            // Generate and store nickname
+            const nickname = generateNickname();
+            const { error: nickError } = await supabase
+              .from('anonymous_users')
+              .insert([
+                { id: authData.user.id, nickname }
+              ]);
+
+            if (nickError) throw nickError;
+            toast.success(`Welcome, ${nickname}!`);
+          }
+        } else {
+          // Get existing nickname
+          const { data: userData } = await supabase
+            .from('anonymous_users')
+            .select('nickname')
+            .eq('id', session.user.id)
+            .single();
+
+          if (userData) {
+            toast.success(`Welcome back, ${userData.nickname}!`);
+          }
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        toast.error("Failed to initialize chat. Please try again.");
+        navigate('/');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeUser();
+  }, [navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/30 via-background to-secondary/30">
