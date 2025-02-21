@@ -24,9 +24,10 @@ const generateNickname = () => {
 };
 
 const generateValidEmail = () => {
+  // Generate a unique email with only lowercase letters and numbers
   const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `anonymous${timestamp}${random}@ventcircle.com`;
+  const random = Math.random().toString(36).substring(2, 6);
+  return `anon${timestamp}${random}@ventcircle.com`;
 };
 
 const Chat = () => {
@@ -43,76 +44,56 @@ const Chat = () => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          // Sign up anonymously with a valid email format
+          // Create new anonymous user
           const email = generateValidEmail();
           const password = crypto.randomUUID();
-          
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+
+          // Always try to sign up first since we're generating a new email
+          const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
             password,
+            options: {
+              emailRedirectTo: window.location.origin
+            }
           });
 
-          if (signInError) {
-            // If sign in fails, try signing up
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-              email,
-              password,
-            });
-
-            if (authError) {
-              console.error('Auth Error:', authError);
-              throw authError;
-            }
-
-            if (authData.user) {
-              // Generate and store nickname
-              const nickname = generateNickname();
-              const { error: nickError } = await supabase
-                .from('anonymous_users')
-                .insert([
-                  { id: authData.user.id, nickname }
-                ]);
-
-              if (nickError) {
-                console.error('Nickname Error:', nickError);
-                throw nickError;
-              }
-              
-              toast.success(`Welcome, ${nickname}!`);
-            }
-          } else if (signInData.user) {
-            // User exists, get their nickname
-            const { data: userData, error: userError } = await supabase
-              .from('anonymous_users')
-              .select('nickname')
-              .eq('id', signInData.user.id)
-              .maybeSingle();
-
-            if (userError) {
-              console.error('User Data Error:', userError);
-              throw userError;
-            }
-
-            if (userData) {
-              toast.success(`Welcome back, ${userData.nickname}!`);
-            }
+          if (authError) {
+            console.error('Auth Error:', authError);
+            throw authError;
           }
+
+          if (!authData.user) {
+            throw new Error('No user data returned after signup');
+          }
+
+          // Generate and store nickname
+          const nickname = generateNickname();
+          const { error: nickError } = await supabase
+            .from('anonymous_users')
+            .insert([
+              { id: authData.user.id, nickname }
+            ]);
+
+          if (nickError) {
+            console.error('Nickname Error:', nickError);
+            throw nickError;
+          }
+          
+          toast.success(`Welcome, ${nickname}!`);
         } else {
-          // Get existing nickname
+          // Get existing nickname for returning user
           const { data: userData, error: userError } = await supabase
             .from('anonymous_users')
             .select('nickname')
             .eq('id', session.user.id)
-            .maybeSingle();
+            .single();
 
           if (userError) {
             console.error('User Data Error:', userError);
             throw userError;
           }
 
-          if (userData) {
-            toast.success(`Welcome back, ${userData.nickname}!`);
-          }
+          toast.success(`Welcome back, ${userData.nickname}!`);
         }
       } catch (error) {
         console.error('Initialization Error:', error);
