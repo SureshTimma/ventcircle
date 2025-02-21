@@ -24,9 +24,9 @@ const generateNickname = () => {
 };
 
 const generateValidEmail = () => {
-  // Generate a random string for the local part of the email
-  const randomString = Math.random().toString(36).substring(2, 15);
-  return `anonymous${randomString}@ventcircle.com`;
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 10000);
+  return `anonymous${timestamp}${random}@ventcircle.com`;
 };
 
 const Chat = () => {
@@ -47,31 +47,55 @@ const Chat = () => {
           const email = generateValidEmail();
           const password = crypto.randomUUID();
           
-          const { data: authData, error: authError } = await supabase.auth.signUp({
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
 
-          if (authError) {
-            console.error('Auth Error:', authError);
-            throw authError;
-          }
+          if (signInError) {
+            // If sign in fails, try signing up
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+              email,
+              password,
+            });
 
-          if (authData.user) {
-            // Generate and store nickname
-            const nickname = generateNickname();
-            const { error: nickError } = await supabase
-              .from('anonymous_users')
-              .insert([
-                { id: authData.user.id, nickname }
-              ]);
-
-            if (nickError) {
-              console.error('Nickname Error:', nickError);
-              throw nickError;
+            if (authError) {
+              console.error('Auth Error:', authError);
+              throw authError;
             }
-            
-            toast.success(`Welcome, ${nickname}!`);
+
+            if (authData.user) {
+              // Generate and store nickname
+              const nickname = generateNickname();
+              const { error: nickError } = await supabase
+                .from('anonymous_users')
+                .insert([
+                  { id: authData.user.id, nickname }
+                ]);
+
+              if (nickError) {
+                console.error('Nickname Error:', nickError);
+                throw nickError;
+              }
+              
+              toast.success(`Welcome, ${nickname}!`);
+            }
+          } else if (signInData.user) {
+            // User exists, get their nickname
+            const { data: userData, error: userError } = await supabase
+              .from('anonymous_users')
+              .select('nickname')
+              .eq('id', signInData.user.id)
+              .maybeSingle();
+
+            if (userError) {
+              console.error('User Data Error:', userError);
+              throw userError;
+            }
+
+            if (userData) {
+              toast.success(`Welcome back, ${userData.nickname}!`);
+            }
           }
         } else {
           // Get existing nickname
