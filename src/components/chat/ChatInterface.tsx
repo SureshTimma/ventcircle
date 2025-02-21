@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,15 @@ const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     // Load existing messages
@@ -116,7 +125,11 @@ const ChatInterface = () => {
             key={msg.id}
             className={`flex flex-col ${msg.is_ai ? 'items-start' : 'items-end'}`}
           >
-            <div className={`max-w-[80%] bg-${msg.is_ai ? 'primary/10' : 'primary/20'} rounded-lg p-3`}>
+            <div 
+              className={`max-w-[80%] ${
+                msg.is_ai ? 'bg-primary/10' : 'bg-primary/20'
+              } rounded-lg p-3`}
+            >
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-medium">{msg.sender_name}</span>
                 {msg.emotion && !msg.is_ai && (
@@ -129,6 +142,7 @@ const ChatInterface = () => {
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
       
       <div className="border-t p-4 bg-background/50">
@@ -139,7 +153,7 @@ const ChatInterface = () => {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message..."
             className="flex-1 bg-background rounded-md border px-3 py-2"
-            onKeyPress={(e) => e.key === "Enter" && handleSend()}
+            onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
             disabled={isLoading}
           />
           <Button onClick={handleSend} disabled={isLoading}>

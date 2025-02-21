@@ -1,118 +1,103 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.1.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { message, userId } = await req.json();
+    const { message, userId } = await req.json()
 
-    // First, analyze the emotion
-    const emotionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an emotion analyzer. Respond with a single word emotion that best describes the message. Choose from: happy, sad, angry, anxious, neutral, excited, confused, or frustrated.'
-          },
-          { role: 'user', content: message }
-        ],
-      }),
-    });
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    const emotionData = await emotionResponse.json();
-    const emotion = emotionData.choices[0].message.content.toLowerCase().trim();
-
-    // Then, generate the AI response
-    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an empathetic and supportive friend. Provide brief, caring responses to help users process their emotions. Keep responses under 2-3 sentences.'
-          },
-          { role: 'user', content: `The user is feeling ${emotion} and said: ${message}` }
-        ],
-      }),
-    });
-
-    const responseData = await aiResponse.json();
-    const aiMessage = responseData.choices[0].message.content;
-
-    // Get the user's nickname
-    const { data: userData } = await supabase
+    // Get user's nickname
+    const { data: userData, error: userError } = await supabaseClient
       .from('anonymous_users')
       .select('nickname')
       .eq('id', userId)
-      .single();
+      .single()
 
-    // Store both the user's message and AI response
-    const { data: messages, error } = await supabase
+    if (userError) throw userError
+
+    // Initialize OpenAI
+    const configuration = new Configuration({
+      apiKey: Deno.env.get('OPENAI_API_KEY'),
+    })
+    const openai = new OpenAIApi(configuration)
+
+    // Create user message
+    const { error: messageError } = await supabaseClient
       .from('messages')
       .insert([
         {
           content: message,
           sender_id: userId,
           sender_name: userData.nickname,
-          emotion: emotion,
           is_ai: false
+        }
+      ])
+
+    if (messageError) throw messageError
+
+    // Analyze message sentiment and generate AI response
+    const completion = await openai.createChatCompletion({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a compassionate and supportive listener. Your responses should be empathetic, non-judgmental, and encouraging. If you detect signs of serious distress or suicidal thoughts, gently suggest professional help and emergency resources."
         },
         {
-          content: aiMessage,
-          sender_id: 'ai',
-          sender_name: 'AI Assistant',
-          is_ai: true
+          role: "user",
+          content: message
         }
-      ]);
+      ],
+    })
 
-    if (error) throw error;
+    const aiResponse = completion.data.choices[0].message?.content
+
+    if (aiResponse) {
+      // Store AI response
+      await supabaseClient
+        .from('messages')
+        .insert([
+          {
+            content: aiResponse,
+            sender_id: 'ai',
+            sender_name: 'VentCircle Assistant',
+            is_ai: true
+          }
+        ])
+    }
 
     return new Response(
-      JSON.stringify({ 
-        emotion,
-        aiMessage,
-        success: true 
-      }),
+      JSON.stringify({ success: true }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
+    )
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+      },
+    )
   }
-});
+})
