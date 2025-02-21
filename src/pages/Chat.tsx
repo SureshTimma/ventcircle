@@ -23,6 +23,12 @@ const generateNickname = () => {
   return `${adjective}${version}${number}`;
 };
 
+const generateValidEmail = () => {
+  // Generate a valid-format anonymous email using UUID
+  const randomId = crypto.randomUUID();
+  return `${randomId}@anonymous.ventcircle.com`;
+};
+
 const Chat = () => {
   const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,9 +43,9 @@ const Chat = () => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          // Sign up anonymously
+          // Sign up anonymously with a valid email format
           const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: `${crypto.randomUUID()}@anonymous.com`,
+            email: generateValidEmail(),
             password: crypto.randomUUID(),
           });
 
@@ -59,11 +65,13 @@ const Chat = () => {
           }
         } else {
           // Get existing nickname
-          const { data: userData } = await supabase
+          const { data: userData, error: userError } = await supabase
             .from('anonymous_users')
             .select('nickname')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
+
+          if (userError) throw userError;
 
           if (userData) {
             toast.success(`Welcome back, ${userData.nickname}!`);
