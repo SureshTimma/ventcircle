@@ -24,9 +24,9 @@ const generateNickname = () => {
 };
 
 const generateValidEmail = () => {
-  // Generate a valid-format anonymous email using UUID
-  const randomId = crypto.randomUUID();
-  return `${randomId}@anonymous.ventcircle.com`;
+  // Generate a random string for the local part of the email
+  const randomString = Math.random().toString(36).substring(2, 15);
+  return `anonymous${randomString}@ventcircle.com`;
 };
 
 const Chat = () => {
@@ -44,12 +44,18 @@ const Chat = () => {
         
         if (!session) {
           // Sign up anonymously with a valid email format
+          const email = generateValidEmail();
+          const password = crypto.randomUUID();
+          
           const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: generateValidEmail(),
-            password: crypto.randomUUID(),
+            email,
+            password,
           });
 
-          if (authError) throw authError;
+          if (authError) {
+            console.error('Auth Error:', authError);
+            throw authError;
+          }
 
           if (authData.user) {
             // Generate and store nickname
@@ -60,7 +66,11 @@ const Chat = () => {
                 { id: authData.user.id, nickname }
               ]);
 
-            if (nickError) throw nickError;
+            if (nickError) {
+              console.error('Nickname Error:', nickError);
+              throw nickError;
+            }
+            
             toast.success(`Welcome, ${nickname}!`);
           }
         } else {
@@ -71,14 +81,17 @@ const Chat = () => {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          if (userError) throw userError;
+          if (userError) {
+            console.error('User Data Error:', userError);
+            throw userError;
+          }
 
           if (userData) {
             toast.success(`Welcome back, ${userData.nickname}!`);
           }
         }
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Initialization Error:', error);
         toast.error("Failed to initialize chat. Please try again.");
         navigate('/');
       } finally {
